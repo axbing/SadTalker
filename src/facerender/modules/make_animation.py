@@ -105,9 +105,10 @@ def make_animation(source_image, source_semantics, target_semantics,
                             use_exp=True, use_half=False):
     with torch.no_grad():
         predictions = []
+        source_image_batch = source_image.reshape(-1, source_semantics.shape[1], source_image.shape[-3], source_image.shape[-2], source_image.shape[-1])
     
         for frame_idx in tqdm(range(target_semantics.shape[1]), 'Face Renderer:'):
-            kp_canonical = kp_detector(source_image[frame_idx])
+            kp_canonical = kp_detector(source_image_batch[:, 0])
             he_source = mapping(source_semantics[:, frame_idx])
             kp_source = keypoint_transformation(kp_canonical, he_source)
             # still check the dimension
@@ -124,7 +125,7 @@ def make_animation(source_image, source_semantics, target_semantics,
             kp_driving = keypoint_transformation(kp_canonical, he_driving)
                 
             kp_norm = kp_driving
-            out = generator(source_image, kp_source=kp_source, kp_driving=kp_norm)
+            out = generator(source_image_batch[:, frame_idx], kp_source=kp_source, kp_driving=kp_norm)
             '''
             source_image_new = out['prediction'].squeeze(1)
             kp_canonical_new =  kp_detector(source_image_new)
