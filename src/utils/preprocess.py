@@ -19,6 +19,7 @@ import warnings
 from src.utils.safetensor_helper import load_x_from_safetensor 
 warnings.filterwarnings("ignore")
 
+# 从3DMM的结果拿出来对应的数据
 def split_coeff(coeffs):
         """
         Return:
@@ -60,13 +61,13 @@ class CropAndExtract():
         self.lm3d_std = load_lm3d(sadtalker_path['dir_of_BFM_fitting'])
         self.device = device
     
-    def generate(self, input_path, save_dir, crop_or_resize='crop', source_image_flag=False, pic_size=256):
+    def generate(self, input_path, save_dir, num_frames, crop_or_resize='crop', source_image_flag=False, pic_size=256):
 
         pic_name = os.path.splitext(os.path.split(input_path)[-1])[0]  
 
         landmarks_path =  os.path.join(save_dir, pic_name+'_landmarks.txt') 
-        coeff_path =  os.path.join(save_dir, pic_name+'.mat')  
-        png_path =  os.path.join(save_dir, pic_name+'.png')  
+        coeff_path =  os.path.join(save_dir, pic_name+'.mat')
+        png_paths = []  
 
         #load input
         if not os.path.isfile(input_path):
@@ -88,27 +89,29 @@ class CropAndExtract():
                 full_frames.append(frame) 
                 if source_image_flag:
                     break
+                if len(full_frames) == num_frames:
+                    break
 
         x_full_frames= [cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)  for frame in full_frames] 
 
         #### crop images as the 
-        if 'crop' in crop_or_resize.lower(): # default crop
-            x_full_frames, crop, quad = self.propress.crop(x_full_frames, still=True if 'ext' in crop_or_resize.lower() else False, xsize=512)
-            clx, cly, crx, cry = crop
-            lx, ly, rx, ry = quad
-            lx, ly, rx, ry = int(lx), int(ly), int(rx), int(ry)
-            oy1, oy2, ox1, ox2 = cly+ly, cly+ry, clx+lx, clx+rx
-            crop_info = ((ox2 - ox1, oy2 - oy1), crop, quad)
-        elif 'full' in crop_or_resize.lower():
-            x_full_frames, crop, quad = self.propress.crop(x_full_frames, still=True if 'ext' in crop_or_resize.lower() else False, xsize=512)
-            clx, cly, crx, cry = crop
-            lx, ly, rx, ry = quad
-            lx, ly, rx, ry = int(lx), int(ly), int(rx), int(ry)
-            oy1, oy2, ox1, ox2 = cly+ly, cly+ry, clx+lx, clx+rx
-            crop_info = ((ox2 - ox1, oy2 - oy1), crop, quad)
-        else: # resize mode
-            oy1, oy2, ox1, ox2 = 0, x_full_frames[0].shape[0], 0, x_full_frames[0].shape[1] 
-            crop_info = ((ox2 - ox1, oy2 - oy1), None, None)
+        # if 'crop' in crop_or_resize.lower(): # default crop
+        x_full_frames = self.propress.crop(x_full_frames, still=True if 'ext' in crop_or_resize.lower() else False, xsize=512)
+        # clx, cly, crx, cry = crop
+        # lx, ly, rx, ry = quad
+        # lx, ly, rx, ry = int(lx), int(ly), int(rx), int(ry)
+        # oy1, oy2, ox1, ox2 = cly+ly, cly+ry, clx+lx, clx+rx
+        # crop_info = ((ox2 - ox1, oy2 - oy1), crop, quad)
+        # elif 'full' in crop_or_resize.lower():
+        #     x_full_frames, crop, quad = self.propress.crop(x_full_frames, still=True if 'ext' in crop_or_resize.lower() else False, xsize=512)
+        #     clx, cly, crx, cry = crop
+        #     lx, ly, rx, ry = quad
+        #     lx, ly, rx, ry = int(lx), int(ly), int(rx), int(ry)
+        #     oy1, oy2, ox1, ox2 = cly+ly, cly+ry, clx+lx, clx+rx
+        #     crop_info = ((ox2 - ox1, oy2 - oy1), crop, quad)
+        # else: # resize mode
+        #     oy1, oy2, ox1, ox2 = 0, x_full_frames[0].shape[0], 0, x_full_frames[0].shape[1] 
+        #     crop_info = ((ox2 - ox1, oy2 - oy1), None, None)
 
         frames_pil = [Image.fromarray(cv2.resize(frame,(pic_size, pic_size))) for frame in x_full_frames]
         if len(frames_pil) == 0:
@@ -116,8 +119,8 @@ class CropAndExtract():
             return None, None
 
         # save crop info
-        for frame in frames_pil:
-            cv2.imwrite(png_path, cv2.cvtColor(np.array(frame), cv2.COLOR_RGB2BGR))
+        # for frame in frames_pil:
+        #     cv2.imwrite(png_path, cv2.cvtColor(np.array(frame), cv2.COLOR_RGB2BGR))
 
         # 2. get the landmark according to the detected face. 
         if not os.path.isfile(landmarks_path): 
@@ -132,6 +135,11 @@ class CropAndExtract():
             video_coeffs, full_coeffs = [],  []
             for idx in tqdm(range(len(frames_pil)), desc='3DMM Extraction In Video:'):
                 frame = frames_pil[idx]
+
+                png_path =  os.path.join(save_dir, f'{pic_name}.{idx}.png')
+                png_paths.append(png_path)
+                cv2.imwrite(png_path, cv2.cvtColor(np.array(frame), cv2.COLOR_RGB2BGR))
+
                 W,H = frame.size
                 lm1 = lm[idx].reshape([-1, 2])
             
@@ -155,16 +163,21 @@ class CropAndExtract():
                 pred_coeff = {key:coeffs[key].cpu().numpy() for key in coeffs}
  
                 pred_coeff = np.concatenate([
-                    pred_coeff['exp'], 
-                    pred_coeff['angle'],
-                    pred_coeff['trans'],
-                    trans_params[2:][None],
+                    pred_coeff['exp'], # 64
+                    pred_coeff['angle'], # 3
+                    pred_coeff['trans'], # 3
+                    trans_params[2:][None], # 3
                     ], 1)
                 video_coeffs.append(pred_coeff)
-                full_coeffs.append(full_coeff.cpu().numpy())
+                full_coeffs.append(full_coeff.cpu().numpy()) # 1 257
 
             semantic_npy = np.array(video_coeffs)[:,0] 
 
-            savemat(coeff_path, {'coeff_3dmm': semantic_npy, 'full_3dmm': np.array(full_coeffs)[0]})
+            savemat(coeff_path, {'coeff_3dmm': semantic_npy, 'full_3dmm': np.array(full_coeffs)[:, 0]})
+        else:
+            for idx in range(len(frames_pil)):                
+                png_path =  os.path.join(save_dir, f'{pic_name}.{idx}.png')
+                png_paths.append(png_path)
 
-        return coeff_path, png_path, crop_info
+
+        return coeff_path, png_paths
