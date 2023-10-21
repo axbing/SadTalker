@@ -70,7 +70,7 @@ def get_facerender_data(coeff_path, pic_path_arr, frames_coeff_path, audio_path,
     target_semantics_np = np.array(target_semantics_list)             #frame_num 70 semantic_radius*2+1
     source_semantics_np = np.array(source_semantics_list)
     target_semantics_np = target_semantics_np.reshape(batch_size, -1, target_semantics_np.shape[-2], target_semantics_np.shape[-1])
-    source_semantics_np = target_semantics_np.reshape(batch_size, -1, source_semantics_np.shape[-2], source_semantics_np.shape[-1])
+    source_semantics_np = source_semantics_np.reshape(batch_size, -1, source_semantics_np.shape[-2], source_semantics_np.shape[-1])
     data['target_semantics_list'] = torch.FloatTensor(target_semantics_np)
     data['source_semantics'] = torch.FloatTensor(source_semantics_np)
     data['video_name'] = video_name

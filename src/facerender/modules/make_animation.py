@@ -108,7 +108,7 @@ def make_animation(source_image, source_semantics, target_semantics,
         source_image_batch = source_image.reshape(-1, source_semantics.shape[1], source_image.shape[-3], source_image.shape[-2], source_image.shape[-1])
     
         for frame_idx in tqdm(range(target_semantics.shape[1]), 'Face Renderer:'):
-            kp_canonical = kp_detector(source_image_batch[:, 0])
+            kp_canonical = kp_detector(source_image_batch[:, frame_idx])
             he_source = mapping(source_semantics[:, frame_idx])
             kp_source = keypoint_transformation(kp_canonical, he_source)
             # still check the dimension

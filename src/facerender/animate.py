@@ -186,7 +186,7 @@ class AnimateFromCoeff():
 
         predictions_video = predictions_video.reshape((-1,)+predictions_video.shape[2:])
         predictions_video = predictions_video[:frame_num]
-        predictions_video = torch.cat((source_image, predictions_video), dim=3)
+        # predictions_video = torch.cat((source_image, predictions_video), dim=3)
 
         video = []
         for idx in range(predictions_video.shape[0]):
